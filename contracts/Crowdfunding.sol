@@ -11,7 +11,7 @@ import "./Timer.sol";
 /// (e.g. almost all blockchain spinoffs.)
 contract Crowdfunding {
 
-    address private owner;
+    address payable private owner;
 
     Timer private timer;
 
@@ -19,7 +19,7 @@ contract Crowdfunding {
 
     uint256 public endTimestamp;
 
-    mapping (address => uint256) public investments;
+    mapping(address => uint256) public investments;
 
     constructor(
         address _owner,
@@ -27,25 +27,54 @@ contract Crowdfunding {
         uint256 _goal,
         uint256 _endTimestamp
     ) {
-        owner = (_owner == address(0) ? msg.sender : _owner);
-        timer = _timer; // Not checking if this is correctly injected.
+        owner = payable(_owner == address(0) ? msg.sender : _owner);
+        timer = _timer;
+        // Not checking if this is correctly injected.
         goal = _goal;
         endTimestamp = _endTimestamp;
     }
 
-    function invest() public payable {
-        // TODO Your code here
-        revert("Not yet implemented");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Failed as not owner.");
+        _;
     }
 
-    function claimFunds() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+    modifier beforeDeadline() {
+        require(timer.getTime() < endTimestamp, "Function can't be called after deadline.");
+        _;
     }
 
-    function refund() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+    modifier afterDeadline(){
+        require(timer.getTime() >= endTimestamp, "Function can't be called before deadline.");
+        _;
     }
-    
+
+    modifier goalReached(){
+        require(address(this).balance >= goal, "Function can't be called when goal is not reached.");
+        _;
+    }
+
+    modifier goalNotReached(){
+        require(address(this).balance < goal, "Function can't be called when goal is reached.");
+        _;
+    }
+
+    function invest() beforeDeadline public payable {
+        investments[msg.sender] += msg.value;
+    }
+
+    function claimFunds() onlyOwner afterDeadline goalReached public {
+        owner.transfer(address(this).balance);
+    }
+
+    function refund() afterDeadline goalNotReached public {
+        uint256 amount = investments[msg.sender];
+
+        bool success = payable(msg.sender).send(amount);
+
+        require(success, "Refund not successful.");
+
+        investments[msg.sender] -= amount;
+    }
+
 }
