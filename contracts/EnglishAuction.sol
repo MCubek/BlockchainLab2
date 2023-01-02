@@ -29,19 +29,44 @@ contract EnglishAuction is Auction {
         lastBidTimestamp = time();
     }
 
-    function bid() public payable {
-        // TODO Your code here
-        revert("Not yet implemented");
+    modifier hasNotTimedOut(){
+        require(!isTimedOut(), "Auction has timed out.");
+        _;
+    }
+
+    function isTimedOut() private view returns (bool){
+        return time() >= lastBidTimestamp + biddingPeriod;
+    }
+
+    function bid() auctionOngoing hasNotTimedOut public payable {
+        uint minimumBidAmount = highestBid + minimumPriceIncrement;
+        minimumBidAmount = highestBidder == address(0) ? initialPrice : minimumBidAmount;
+
+        require(msg.value >= minimumBidAmount, "Bid not large enough.");
+
+        if (highestBidder != address(0)) {
+            payable(highestBidder).transfer(highestBid);
+        }
+
+        highestBidder = msg.sender;
+        highestBid = msg.value;
+        lastBidTimestamp = time();
     }
 
     function getHighestBidder() override public returns (address) {
-        // TODO Your code here
-        revert("Not yet implemented");
+        if (isTimedOut()) {
+            finishAuction(highestBidder != address(0) ? Outcome.SUCCESSFUL : Outcome.NOT_SUCCESSFUL, highestBidder);
+            return super.getHighestBidder();
+        }
+        else {
+            return address(0);
+        }
     }
 
     function enableRefunds() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+        if (isTimedOut() && highestBidder == address(0)) {
+            finishAuction(Outcome.NOT_SUCCESSFUL, address(0));
+        }
     }
 
 }

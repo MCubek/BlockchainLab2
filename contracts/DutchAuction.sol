@@ -47,7 +47,7 @@ contract DutchAuction is Auction {
         _;
     }
 
-    function getCurrentPrice() private returns (uint){
+    function getCurrentPrice() private view returns (uint){
         return initialPrice - (time() - auctionStart) * priceDecrement;
     }
 
@@ -65,7 +65,7 @@ contract DutchAuction is Auction {
     }
 
     function enableRefunds() public {
-        if (time() > auctionEnd) {
+        if (time() > auctionEnd && highestBidderAddress == address(0)) {
             finishAuction(Outcome.NOT_SUCCESSFUL, address(0));
         }
     }
