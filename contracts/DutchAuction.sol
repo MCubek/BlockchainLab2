@@ -37,16 +37,36 @@ contract DutchAuction is Auction {
         auctionEnd = auctionStart + _biddingPeriod;
     }
 
+    modifier hasNoBidder(){
+        require(highestBidderAddress == address(0), "Auction has a bidder.");
+        _;
+    }
+
+    modifier hasNotTimedOut(){
+        require(time() <= auctionEnd, "Auction has timed out.");
+        _;
+    }
+
+    function getCurrentPrice() private returns (uint){
+        return initialPrice - (time() - auctionStart) * priceDecrement;
+    }
+
     /// In Dutch auction, winner is the first pearson who bids with
     /// bid that is higher than the current prices.
     /// This method should be only called while the auction is active.
-    function bid() public payable {
-        // TODO Your code here
-        revert("Not yet implemented");
+    function bid() auctionOngoing hasNoBidder hasNotTimedOut public payable {
+        uint amount = getCurrentPrice();
+
+        require(msg.value >= amount, "Not enough to bid.");
+
+        payable(msg.sender).transfer(msg.value - amount);
+
+        finishAuction(Outcome.SUCCESSFUL, msg.sender);
     }
 
     function enableRefunds() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+        if (time() > auctionEnd) {
+            finishAuction(Outcome.NOT_SUCCESSFUL, address(0));
+        }
     }
 }

@@ -92,6 +92,11 @@ contract Auction {
         require(highestBidderAddress != address(0), "There are no bidders.");
         _;
     }
+    modifier auctionOngoing(){
+        require(outcome == Outcome.NOT_FINISHED, "Auction is not ongoing.");
+        _;
+    }
+
 
     /// Finalizes the auction and sends the money to the auction seller.
     /// This function can only be called when the auction has finished successfully.
