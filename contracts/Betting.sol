@@ -9,8 +9,9 @@ contract Betting {
         uint8 id;
         string name;
         uint totalBetAmount;
-        uint currCoef; 
+        uint currCoef;
     }
+
     struct Bet {
         address bettor;
         uint amount;
@@ -30,8 +31,8 @@ contract Betting {
     Player public player_2;
 
     bool private suspended = false;
-    mapping (address => uint) public balances;
-    
+    mapping(address => uint) public balances;
+
     constructor(
         address _betMaker,
         string memory _player_1,
@@ -55,24 +56,116 @@ contract Betting {
     receive() external payable {}
 
     fallback() external payable {}
-    
-    function makeBet(uint8 _playerId) public payable {
-        //TODO Your code here
-        revert("Not yet implemented");
+
+    modifier betInRange(uint amount){
+        require(amount <= maxBetAmount && amount >= minBetAmount, "Bet can't be made as it it out of range.");
+        _;
     }
 
-    function claimSuspendedBets() public {
-        //TODO Your code here
-        revert("Not yet implemented");
+    modifier notSuspended(){
+        require(!suspended, "Betting is suspended");
+        _;
     }
 
-    function claimWinningBets() public {
-        //TODO Your code here
-        revert("Not yet implemented");
+    modifier isSuspended(){
+        require(suspended, "Betting is not suspended");
+        _;
     }
 
-    function claimLosingBets() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+    modifier notFinished(){
+        require(oracle.getWinner() == 0, "Bet can't be made as it is finished.");
+        _;
+    }
+
+    modifier isFinished(){
+        require(oracle.getWinner() != 0, "The bet isn't finished yet.");
+        _;
+    }
+
+    modifier notBetMaker(){
+        require(msg.sender != betMaker, "Bet maker cant make bets.");
+        _;
+    }
+
+    modifier isBetMaker(){
+        require(msg.sender == betMaker, "Not bet maker.");
+        _;
+    }
+
+    function suspendSuspiciousBets() internal {
+        if (totalBetAmount > thresholdAmount) {
+            if (player_1.totalBetAmount == 0 || player_2.totalBetAmount == 0) {
+                suspended = true;
+            }
+        }
+    }
+
+    function getAndUpdatePlayerCoefs(uint playerId) internal returns (uint){
+        if (totalBetAmount > thresholdAmount) {
+            uint sum = player_1.totalBetAmount + player_2.totalBetAmount;
+
+            player_1.currCoef = sum * 100 / player_1.totalBetAmount;
+            player_2.currCoef = sum * 100 / player_2.totalBetAmount;
+        }
+        return (playerId == player_1.id ? player_1 : player_2).currCoef;
+    }
+
+    function makeBet(uint8 _playerId) notSuspended notFinished notBetMaker betInRange(msg.value) public payable {
+        require(_playerId == player_1.id || _playerId == player_2.id, "Invalid player id.");
+
+        uint playerCoef = getAndUpdatePlayerCoefs(_playerId);
+
+        bets.push(Bet({
+        bettor : msg.sender,
+        amount : msg.value,
+        player_id : _playerId,
+        betCoef : playerCoef
+        }));
+
+        (_playerId == player_1.id ? player_1 : player_2).totalBetAmount += msg.value;
+        totalBetAmount += msg.value;
+        balances[msg.sender] += msg.value;
+
+        suspendSuspiciousBets();
+    }
+
+    function claimSuspendedBets() isSuspended public {
+        uint256 amount = balances[msg.sender];
+
+        bool success = payable(msg.sender).send(amount);
+
+        require(success, "Refund of suspended bet not successful.");
+
+        balances[msg.sender] = 0;
+    }
+
+    function claimWinningBets() notSuspended isFinished notBetMaker public {
+        uint winningPlayerId = oracle.getWinner();
+
+        Player storage player = (winningPlayerId == player_1.id ? player_1 : player_2);
+
+        uint winnings = 0;
+        uint betSum = 0;
+        for (uint i = 0; i < bets.length; i++) {
+            Bet memory bet = bets[i];
+            if (bet.player_id == winningPlayerId && bet.bettor == msg.sender) {
+                winnings += bet.amount * bet.betCoef / 100;
+                betSum += bet.amount;
+                bets[i].amount = 0;
+            }
+        }
+        player.totalBetAmount -= betSum;
+        balances[msg.sender] -= betSum;
+
+        payable(msg.sender).transfer(winnings);
+    }
+
+    function claimLosingBets() notSuspended isFinished isBetMaker public {
+        uint winningPlayerId = oracle.getWinner();
+        Player memory winningPlayer = (winningPlayerId == player_1.id ? player_1 : player_2);
+
+        require(winningPlayer.totalBetAmount == 0, "Not all winnings are paid.");
+
+        payable(betMaker).transfer(address(this).balance);
     }
 }
