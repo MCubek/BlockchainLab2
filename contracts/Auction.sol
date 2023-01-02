@@ -66,9 +66,31 @@ contract Auction {
     /// @param _outcome Outcome of the auction.
     /// @param _highestBidder Address of the highest bidder or address(0) if auction did not finish successfully.
     function finishAuction(Outcome _outcome, address _highestBidder) internal {
-        require(_outcome != Outcome.NOT_FINISHED); // This should not happen.
+        require(_outcome != Outcome.NOT_FINISHED);
+        // This should not happen.
         outcome = _outcome;
         highestBidderAddress = _highestBidder;
+    }
+
+    modifier isJudgeOrWinnerIfExists(){
+        require(judgeAddress == address(0) || msg.sender == judgeAddress || msg.sender == highestBidderAddress, "Judge or winner address required.");
+        _;
+    }
+    modifier isJudgeOrSellerIfExists(){
+        require(judgeAddress == address(0) || msg.sender == judgeAddress || msg.sender == sellerAddress, "Judge or seller address required.");
+        _;
+    }
+    modifier isFinished(){
+        require(outcome == Outcome.SUCCESSFUL, "Auction is not successfully finished.");
+        _;
+    }
+    modifier isFailed(){
+        require(outcome == Outcome.NOT_SUCCESSFUL, "Auction has not failed.");
+        _;
+    }
+    modifier hasBidder(){
+        require(highestBidderAddress != address(0), "There are no bidders.");
+        _;
     }
 
     /// Finalizes the auction and sends the money to the auction seller.
@@ -76,17 +98,15 @@ contract Auction {
     /// If no judge is specified for an auction then anybody can request
     /// the transfer of fonds to the seller. If the judge is specified,
     /// then only the judge or highest bidder can transfer the funds to the seller.
-    function finalize() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+    function finalize() isFinished isJudgeOrWinnerIfExists public {
+        payable(sellerAddress).transfer(address(this).balance);
     }
 
     // If a judge is specified, this can ONLY be called by seller or the judge.
     // Otherwise, anybody can request refund to the highest bidder.
     // Money can only be refunded to the highest bidder.
-    function refund() public {
-        // TODO Your code here
-        revert("Not yet implemented");
+    function refund() isFailed isJudgeOrSellerIfExists hasBidder public {
+        payable(highestBidderAddress).transfer(address(this).balance);
     }
 
     // This is provided for testing
