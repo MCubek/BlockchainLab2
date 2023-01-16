@@ -70,11 +70,10 @@ contract Crowdfunding {
     function refund() afterDeadline goalNotReached public {
         uint256 amount = investments[msg.sender];
 
+        investments[msg.sender] -= amount;
         bool success = payable(msg.sender).send(amount);
 
         require(success, "Refund not successful.");
-
-        investments[msg.sender] -= amount;
     }
 
 }
